@@ -18,6 +18,6 @@ COPY backend/ ./
 # Copy built frontend into backend/static
 COPY --from=frontend-build /app/frontend/dist ./static
 
-ENV PORT=8000
+EXPOSE 8080
 
-CMD uvicorn main:app --host 0.0.0.0 --port $PORT
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
