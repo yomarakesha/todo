@@ -30,6 +30,8 @@ function getStreak(log) {
 export default function Habits() {
   const [habits, setHabits] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState({});
   const [editItem, setEditItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [name, setName] = useState("");
@@ -85,13 +87,27 @@ export default function Habits() {
       <div className="card">
         <div className="card-header">
           <h2>Habits</h2>
-          <button className="btn btn-primary" onClick={openAdd}>+ Add</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" onClick={async () => {
+              const t = await api.getHabitTemplates();
+              setTemplates(t);
+              setShowTemplates(true);
+            }}>Templates</button>
+            <button className="btn btn-primary" onClick={openAdd}>+ Add</button>
+          </div>
         </div>
 
         {habits.length === 0 ? (
           <div className="empty">
             <p>No habits tracked</p>
-            <button className="btn btn-primary" onClick={openAdd}>Add your first habit</button>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button className="btn" onClick={async () => {
+                const t = await api.getHabitTemplates();
+                setTemplates(t);
+                setShowTemplates(true);
+              }}>Use template</button>
+              <button className="btn btn-primary" onClick={openAdd}>Add your first habit</button>
+            </div>
           </div>
         ) : (
           <>
@@ -154,6 +170,30 @@ export default function Habits() {
                 <button type="submit" className="btn btn-primary">{editItem ? "Save" : "Add"}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showTemplates && (
+        <div className="modal-overlay" onClick={() => setShowTemplates(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Habit Templates</h3>
+            <div className="template-list">
+              {Object.entries(templates).map(([key, name]) => (
+                <button key={key} className="template-item" onClick={async () => {
+                  await api.applyHabitTemplate(key);
+                  toast("Template applied!");
+                  setShowTemplates(false);
+                  load();
+                }}>
+                  <span className="template-name">{name}</span>
+                  <span className="template-arrow">{"\u2192"}</span>
+                </button>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setShowTemplates(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}

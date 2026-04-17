@@ -10,6 +10,7 @@ const NAV = [
   { to: "/pomodoro", icon: "\u23f1", label: "Pomodoro" },
   { to: "/notes", icon: "\u270e", label: "Notes" },
   { to: "/analytics", icon: "\u2261", label: "Analytics" },
+  { to: "/settings", icon: "\u2699", label: "Settings" },
 ];
 
 export default function Layout() {

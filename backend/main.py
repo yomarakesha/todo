@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from auth import create_token, decode_token, hash_password, verify_password
 from database import Base, engine, get_db
-from models import Habit, HabitLog, Note, PomodoroSession, Subtask, Todo, User, Workout
+from models import Habit, HabitLog, Note, PomodoroSession, PushSubscription, Subtask, Todo, User, Workout
+from push import get_public_key, send_push, start_scheduler
 from schemas import (
     AuthRequest,
     AuthResponse,
@@ -23,6 +24,7 @@ from schemas import (
     NoteUpdate,
     PomodoroSessionCreate,
     PomodoroSessionOut,
+    PushSubscriptionCreate,
     SubtaskCreate,
     SubtaskOut,
     TodoCreate,
@@ -34,6 +36,91 @@ from schemas import (
 )
 
 Base.metadata.create_all(bind=engine)
+
+# ══════════════════════════════════════════════════
+# Exercise Catalog
+# ══════════════════════════════════════════════════
+
+EXERCISE_CATALOG = {
+    "chest": [
+        "Жим лёжа", "Жим гантелей лёжа", "Жим на наклонной", "Разводка гантелей",
+        "Отжимания", "Кроссовер", "Пуловер", "Жим в тренажёре",
+    ],
+    "back": [
+        "Подтягивания", "Тяга штанги в наклоне", "Тяга верхнего блока",
+        "Тяга нижнего блока", "Тяга гантели одной рукой", "Гиперэкстензия",
+        "Становая тяга", "Тяга Т-грифа",
+    ],
+    "legs": [
+        "Приседания со штангой", "Жим ногами", "Выпады", "Румынская тяга",
+        "Сгибания ног", "Разгибания ног", "Подъём на носки", "Гакк-приседания",
+    ],
+    "shoulders": [
+        "Жим стоя", "Жим гантелей сидя", "Махи в стороны", "Махи перед собой",
+        "Тяга к подбородку", "Разведение в наклоне", "Жим Арнольда",
+    ],
+    "biceps": [
+        "Подъём штанги на бицепс", "Молотки", "Подъём на скамье Скотта",
+        "Концентрированный подъём", "Подъём гантелей с супинацией",
+    ],
+    "triceps": [
+        "Французский жим", "Отжимания на брусьях", "Разгибания на блоке",
+        "Жим узким хватом", "Разгибание гантели из-за головы", "Кик-бэк",
+    ],
+    "abs": [
+        "Скручивания", "Планка", "Подъём ног в висе", "Русские скручивания",
+        "Велосипед", "Вакуум", "Подъём ног лёжа",
+    ],
+    "cardio": [
+        "Бег", "Велосипед", "Эллипс", "Скакалка", "Плавание", "Ходьба",
+    ],
+}
+
+HABIT_TEMPLATES = {
+    "morning": {
+        "name": "Утренняя рутина",
+        "habits": ["Зарядка", "Медитация", "Здоровый завтрак", "Чтение 15 минут"],
+    },
+    "health": {
+        "name": "ЗОЖ",
+        "habits": ["Выпить 2л воды", "Сон 8 часов", "Без сахара", "Прогулка 30 минут"],
+    },
+    "productivity": {
+        "name": "Продуктивность",
+        "habits": ["Планирование дня", "Без соцсетей до обеда", "Ревью дня", "Глубокая работа 2ч"],
+    },
+    "fitness": {
+        "name": "Фитнес",
+        "habits": ["Тренировка", "Растяжка", "10 000 шагов", "Протеин"],
+    },
+}
+
+TODO_TEMPLATES = {
+    "cleaning": {
+        "name": "Еженедельная уборка",
+        "tasks": [
+            {"text": "Уборка квартиры", "subtasks": ["Пропылесосить", "Помыть полы", "Протереть пыль", "Вынести мусор"]},
+        ],
+    },
+    "exam": {
+        "name": "Подготовка к экзамену",
+        "tasks": [
+            {"text": "Подготовиться к экзамену", "subtasks": ["Повторить конспекты", "Решить практику", "Разобрать сложные темы", "Пробный тест"]},
+        ],
+    },
+    "travel": {
+        "name": "Путешествие",
+        "tasks": [
+            {"text": "Собраться в поездку", "subtasks": ["Забронировать жильё", "Купить билеты", "Собрать вещи", "Проверить документы", "Обменять валюту"]},
+        ],
+    },
+    "weekly_review": {
+        "name": "Еженедельный ревью",
+        "tasks": [
+            {"text": "Провести ревью недели", "subtasks": ["Проверить выполненные задачи", "Поставить цели на неделю", "Обновить приоритеты"]},
+        ],
+    },
+}
 
 app = FastAPI(title="Life Tracker API")
 
@@ -154,6 +241,30 @@ def _todo_with_subtasks(todo: Todo, db: Session) -> dict:
     }
 
 
+@app.get("/api/todos/templates")
+def list_todo_templates():
+    return {key: val["name"] for key, val in TODO_TEMPLATES.items()}
+
+
+@app.post("/api/todos/templates/{template_key}", status_code=201)
+def apply_todo_template(template_key: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    tpl = TODO_TEMPLATES.get(template_key)
+    if not tpl:
+        raise HTTPException(404, "Template not found")
+    created = []
+    for task in tpl["tasks"]:
+        todo = Todo(user_id=user.id, text=task["text"])
+        db.add(todo)
+        db.commit()
+        db.refresh(todo)
+        for st in task.get("subtasks", []):
+            sub = Subtask(todo_id=todo.id, text=st)
+            db.add(sub)
+        db.commit()
+        created.append(_todo_with_subtasks(todo, db))
+    return created
+
+
 @app.get("/api/todos", response_model=list[TodoOut])
 def list_todos(filter: str = "all", user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     q = db.query(Todo).filter(Todo.user_id == user.id)
@@ -272,6 +383,25 @@ def delete_subtask(todo_id: int, sub_id: int, user: User = Depends(get_current_u
 
 
 # ══════════════════════════════════════════════════
+# Exercises Catalog & Autofill
+# ══════════════════════════════════════════════════
+
+@app.get("/api/exercises")
+def get_exercises():
+    return EXERCISE_CATALOG
+
+
+@app.get("/api/workouts/last")
+def last_workout_for_exercise(exercise: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    w = db.query(Workout).filter(
+        Workout.user_id == user.id, Workout.exercise == exercise
+    ).order_by(Workout.date.desc()).first()
+    if not w:
+        return None
+    return {"exercise": w.exercise, "weight": w.weight, "sets": w.sets, "reps": w.reps, "muscle_group": w.muscle_group}
+
+
+# ══════════════════════════════════════════════════
 # Workouts
 # ══════════════════════════════════════════════════
 
@@ -360,6 +490,26 @@ def delete_habit(hid: int, user: User = Depends(get_current_user), db: Session =
     db.query(HabitLog).filter(HabitLog.habit_id == hid).delete()
     db.delete(h)
     db.commit()
+
+
+@app.get("/api/habits/templates")
+def list_habit_templates():
+    return {key: val["name"] for key, val in HABIT_TEMPLATES.items()}
+
+
+@app.post("/api/habits/templates/{template_key}", status_code=201)
+def apply_habit_template(template_key: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    tpl = HABIT_TEMPLATES.get(template_key)
+    if not tpl:
+        raise HTTPException(404, "Template not found")
+    created = []
+    for name in tpl["habits"]:
+        habit = Habit(user_id=user.id, name=name)
+        db.add(habit)
+        db.commit()
+        db.refresh(habit)
+        created.append(HabitWithLog(id=habit.id, name=habit.name, created_at=habit.created_at, log={}))
+    return created
 
 
 @app.post("/api/habits/{hid}/toggle")
@@ -524,6 +674,59 @@ def analytics(user: User = Depends(get_current_user), db: Session = Depends(get_
         "todo_done_days": todo_done_days,
         "muscle_distribution": muscle_dist,
     }
+
+
+# ══════════════════════════════════════════════════
+# Push Notifications
+# ══════════════════════════════════════════════════
+
+@app.get("/api/push/vapid-key")
+def vapid_public_key():
+    return {"publicKey": get_public_key()}
+
+
+@app.post("/api/push/subscribe", status_code=201)
+def push_subscribe(data: PushSubscriptionCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    existing = db.query(PushSubscription).filter(PushSubscription.endpoint == data.endpoint).first()
+    if existing:
+        existing.user_id = user.id
+        existing.p256dh = data.keys["p256dh"]
+        existing.auth = data.keys["auth"]
+    else:
+        sub = PushSubscription(
+            user_id=user.id, endpoint=data.endpoint,
+            p256dh=data.keys["p256dh"], auth=data.keys["auth"],
+        )
+        db.add(sub)
+    db.commit()
+    return {"status": "subscribed"}
+
+
+@app.delete("/api/push/unsubscribe", status_code=204)
+def push_unsubscribe(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db.query(PushSubscription).filter(PushSubscription.user_id == user.id).delete()
+    db.commit()
+
+
+@app.post("/api/push/test")
+def push_test(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    subs = db.query(PushSubscription).filter(PushSubscription.user_id == user.id).all()
+    if not subs:
+        raise HTTPException(404, "No push subscriptions found")
+    sent = 0
+    for sub in subs:
+        sub_info = {"endpoint": sub.endpoint, "keys": {"p256dh": sub.p256dh, "auth": sub.auth}}
+        result = send_push(sub_info, "Life Tracker", "Push-уведомления работают!", "/")
+        if result is True:
+            sent += 1
+        elif result == "gone":
+            db.delete(sub)
+            db.commit()
+    return {"sent": sent}
+
+
+# Start push notification scheduler
+start_scheduler(get_db)
 
 
 # ══════════════════════════════════════════════════

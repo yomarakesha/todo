@@ -10,6 +10,7 @@ import Habits from "./components/Habits";
 import Pomodoro from "./components/Pomodoro";
 import Notes from "./components/Notes";
 import Analytics from "./components/Analytics";
+import Settings from "./components/Settings";
 import Auth from "./components/Auth";
 
 const AuthCtx = createContext();
@@ -75,6 +76,7 @@ function App() {
                 <Route path="pomodoro" element={<Pomodoro />} />
                 <Route path="notes" element={<Notes />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="settings" element={<Settings />} />
               </Route>
             </Routes>
           </BrowserRouter>

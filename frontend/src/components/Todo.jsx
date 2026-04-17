@@ -22,6 +22,8 @@ export default function Todo() {
   const [deleteId, setDeleteId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [subtaskText, setSubtaskText] = useState("");
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState({});
   const [form, setForm] = useState({ text: "", priority: "medium", due: "", category: "", recurrence: "" });
   const toast = useToast();
 
@@ -116,6 +118,11 @@ export default function Todo() {
                 </button>
               ))}
             </div>
+            <button className="btn" onClick={async () => {
+              const t = await api.getTodoTemplates();
+              setTemplates(t);
+              setShowTemplates(true);
+            }}>Templates</button>
             <button className="btn btn-primary" onClick={openAdd}>+ Add</button>
           </div>
         </div>
@@ -137,7 +144,14 @@ export default function Todo() {
           <div className="empty">
             <p>{search ? "No matching tasks" : "No tasks yet"}</p>
             {!search && (
-              <button className="btn btn-primary" onClick={openAdd}>Add your first task</button>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                <button className="btn" onClick={async () => {
+                  const t = await api.getTodoTemplates();
+                  setTemplates(t);
+                  setShowTemplates(true);
+                }}>Use template</button>
+                <button className="btn btn-primary" onClick={openAdd}>Add your first task</button>
+              </div>
             )}
           </div>
         ) : (
@@ -269,6 +283,30 @@ export default function Todo() {
                 <button type="submit" className="btn btn-primary">{editTodo ? "Save" : "Add"}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showTemplates && (
+        <div className="modal-overlay" onClick={() => setShowTemplates(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Task Templates</h3>
+            <div className="template-list">
+              {Object.entries(templates).map(([key, name]) => (
+                <button key={key} className="template-item" onClick={async () => {
+                  await api.applyTodoTemplate(key);
+                  toast("Template applied!");
+                  setShowTemplates(false);
+                  load();
+                }}>
+                  <span className="template-name">{name}</span>
+                  <span className="template-arrow">{"\u2192"}</span>
+                </button>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setShowTemplates(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}

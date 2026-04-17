@@ -44,6 +44,18 @@ export const api = {
   deleteSubtask: (todoId, subtaskId) =>
     request(`/todos/${todoId}/subtasks/${subtaskId}`, { method: "DELETE" }),
 
+  // Exercises catalog
+  getExercises: () => request("/exercises"),
+  getLastWorkout: (exercise) => request(`/workouts/last?exercise=${encodeURIComponent(exercise)}`),
+
+  // Todo templates
+  getTodoTemplates: () => request("/todos/templates"),
+  applyTodoTemplate: (key) => request(`/todos/templates/${key}`, { method: "POST" }),
+
+  // Habit templates
+  getHabitTemplates: () => request("/habits/templates"),
+  applyHabitTemplate: (key) => request(`/habits/templates/${key}`, { method: "POST" }),
+
   // Workouts
   getWorkouts: () => request("/workouts"),
   createWorkout: (data) => request("/workouts", { method: "POST", body: JSON.stringify(data) }),
@@ -71,4 +83,10 @@ export const api = {
 
   // Analytics
   analytics: () => request("/analytics"),
+
+  // Push notifications
+  getVapidKey: () => request("/push/vapid-key"),
+  pushSubscribe: (data) => request("/push/subscribe", { method: "POST", body: JSON.stringify(data) }),
+  pushUnsubscribe: () => request("/push/unsubscribe", { method: "DELETE" }),
+  pushTest: () => request("/push/test", { method: "POST" }),
 };

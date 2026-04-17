@@ -166,3 +166,10 @@ class DashboardStats(BaseModel):
     habits_done_today: int
     best_streak: int
     pomodoro_today: int
+
+
+# ── Push Subscriptions ───────────────────────────
+
+class PushSubscriptionCreate(BaseModel):
+    endpoint: str
+    keys: dict  # { p256dh: str, auth: str }
