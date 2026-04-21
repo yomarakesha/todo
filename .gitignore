@@ -1,7 +1,35 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Databases
 *.db
+*.sqlite
+*.sqlite3
+
+# Secrets / env
+.env
+.env.local
+.env.*.local
+backend/.vapid_keys/
+
+# Node / build
 node_modules/
 dist/
-.env
+backend/static/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+
+# Claude
 .claude/
